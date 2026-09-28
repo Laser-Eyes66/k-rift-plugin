@@ -16,28 +16,27 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Transform Files for Production
-        env:
-          TAG_NAME: ${{ github.ref_name }}
         run: |
-          # Strip the leading 'v' from the tag (e.g., v0.4.1 -> 0.4.1)
-          export CLEAN_VERSION="${TAG_NAME#v}"
-          echo "Building extension version: $CLEAN_VERSION"
+          # The 'export' command makes the variable visible to Python
+          export VERSION=${GITHUB_REF#refs/tags/v}
+          echo "Setting version to: $VERSION"
 
           # Update manifest.json version and strip localhost host permissions
           python3 -c '
           import json, os
-          version = os.environ["CLEAN_VERSION"]
           with open("manifest.json", "r") as f:
               data = json.load(f)
-          data["version"] = version
+          
+          data["version"] = os.environ["VERSION"]
+          
           if "host_permissions" in data:
               data["host_permissions"] = [p for p in data["host_permissions"] if "127.0.0.1" not in p and "localhost" not in p]
+          
           with open("manifest.json", "w") as f:
               json.dump(data, f, indent=2)
           '
 
-      - name: Switch Config for Production
-        run: |
+          # Switch config.js to production server URL
           echo 'const SERVER_URL = "https://krift.4eng.org";' > config.js
 
       - name: Package Extension into Zip
