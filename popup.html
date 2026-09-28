@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        body { width: 280px; font-family: system-ui, sans-serif; padding: 12px; background: #0A0A0C; color: #F3F4F6; margin: 0; }
+        h3 { color: #10B981; margin-top: 0; }
+        label { font-size: 11px; text-transform: uppercase; color: #9CA3AF; display: block; margin-top: 8px; }
+        input[type="password"] { width: 100%; box-sizing: border-box; padding: 6px; margin-top: 3px; background: #16181D; border: 1px solid #064E3B; color: #FFF; border-radius: 4px; }
+        input:invalid { border-color: #EF4444; }
+        .toggle-row { display: flex; align-items: center; justify-content: space-between; margin-top: 12px; cursor: pointer; }
+        .toggle-row span { font-size: 11px; text-transform: uppercase; color: #9CA3AF; }
+        .toggle-row input[type="checkbox"] { width: 16px; height: 16px; accent-color: #10B981; cursor: pointer; }
+        button { width: 100%; margin-top: 12px; padding: 8px; background: #10B981; border: none; font-weight: bold; color: #0A0A0C; border-radius: 4px; cursor: pointer; }
+        button:disabled { background: #064E3B; color: #9CA3AF; cursor: not-allowed; }
+        .status { margin-top: 10px; font-size: 12px; text-align: center; }
+        .server-msg { margin-top: 12px; padding: 10px; background: #16181D; border: 1px solid #064E3B; border-radius: 4px; font-size: 12px; text-align: center; display: none; line-height: 1.4; }
+        .server-msg a { color: #10B981; font-weight: bold; }
+        .school-info { display: none; margin-top: 15px; border-top: 1px solid #064E3B; padding-top: 10px; font-size: 11px; color: #9CA3AF; }
+        .school-info strong { color: #F3F4F6; }
+    </style>
+</head>
+<body>
+<h3>Krift Sync Setup</h3>
+
+<label>API Key</label>
+<input type="password" id="apiKey" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" required>
+
+<label class="toggle-row">
+    <span>Disable Badges</span>
+    <input type="checkbox" id="disableBadges">
+</label>
+
+<button id="verifyBtn">Verify & Connect</button>
+<div id="status" class="status"></div>
+<div id="serverMsg" class="server-msg"></div>
+
+<div id="schoolInfo" class="school-info">
+    <p style="margin: 2px 0;"><strong>School:</strong> <span id="dispSchool">-</span></p>
+    <p style="margin: 2px 0;"><strong>Domain:</strong> <span id="dispDomain">-</span></p>
+    <p style="margin: 2px 0;"><strong>Partner ID:</strong> <span id="dispPartner">-</span></p>
+</div>
+
+<script src="popup.js"></script>
+</body>
+</html>

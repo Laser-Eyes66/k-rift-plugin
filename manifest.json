@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "Krift Brightspace Sync",
+  "version": "0.4.1",
+  "description": "Detects Kaltura videos on Brightspace and syncs them to Krift.",
+  "server_url": "http://127.0.0.1:8000",
+  "permissions": [
+    "storage",
+    "activeTab",
+    "declarativeContent"
+  ],
+  "host_permissions": [
+    "http://127.0.0.1:8000/*",
+    "http://localhost:8000/*",
+    "https://*.brightspace.com/*",
+    "https://*.kaltura.com/*",
+    "https://*.4eng.org/*"
+  ],
+  "action": {
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.brightspace.com/*",
+        "https://*.kaltura.com/*"
+      ],
+      "all_frames": true,
+      "match_about_blank": true,
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

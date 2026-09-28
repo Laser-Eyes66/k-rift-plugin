@@ -1,0 +1,46 @@
+name: Build and Release Extension
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Transform Manifest for Production
+        run: |
+          # Replace local development server URL with production server URL
+          sed -i 's|"http://127.0.0.1:8000"|"https://krift.4eng.org"|g' manifest.json
+          sed -i 's|"http://localhost:8000"|"https://krift.4eng.org"|g' manifest.json
+
+          # Clean out localhost host permissions and keep production domains
+          python3 -c '
+          import json
+          with open("manifest.json", "r") as f:
+              data = json.load(f)
+          if "host_permissions" in data:
+              data["host_permissions"] = [p for p in data["host_permissions"] if "127.0.0.1" not in p and "localhost" not in p]
+          with open("manifest.json", "w") as f:
+              json.dump(data, f, indent=2)
+          '
+
+      - name: Package Extension into Zip
+        run: |
+          # Zip all necessary production files, explicitly omitting git files, READMEs, or testing configs
+          zip -r extension-release.zip . -x "*.git*" "*.github*" "*.gitignore" "README.md"
+
+      - name: Create GitHub Release and Upload Asset
+        uses: softprops/action-gh-release@v1
+        with:
+          files: extension-release.zip
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
