@@ -17,24 +17,30 @@ jobs:
 
       - name: Transform Manifest for Production
         run: |
-          # Replace local development server URL with production server URL
-          sed -i 's|"http://127.0.0.1:8000"|"https://krift.4eng.org"|g' manifest.json
-          sed -i 's|"http://localhost:8000"|"https://krift.4eng.org"|g' manifest.json
+          # Extract version from git tag (stripping the leading 'v')
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "Building extension version: $VERSION"
 
-          # Clean out localhost host permissions and keep production domains
+          # Inject version, swap server URL, and strip localhost permissions
           python3 -c '
-          import json
+          import json, os
+          version = os.environ["VERSION"]
+          
           with open("manifest.json", "r") as f:
               data = json.load(f)
+          
+          data["version"] = version
+          data["server_url"] = "https://krift.4eng.org"
+          
           if "host_permissions" in data:
               data["host_permissions"] = [p for p in data["host_permissions"] if "127.0.0.1" not in p and "localhost" not in p]
+          
           with open("manifest.json", "w") as f:
               json.dump(data, f, indent=2)
           '
 
       - name: Package Extension into Zip
         run: |
-          # Zip all necessary production files, explicitly omitting git files, READMEs, or testing configs
           zip -r extension-release.zip . -x "*.git*" "*.github*" "*.gitignore" "README.md"
 
       - name: Create GitHub Release and Upload Asset
