@@ -1,8 +1,7 @@
-const SERVER_URL = chrome.runtime.getManifest().server_url;
 const tabMetadataStore = {};
 const tabMessages = {};
 const badgeTimers = {}; // Tracks timeouts for auto-clearing badges
-
+importScripts('config.js');
 chrome.runtime.onInstalled.addListener(async () => {
     const { apiKey, disableBadges } = await chrome.storage.sync.get(['apiKey', 'disableBadges']);
     if (!apiKey && !disableBadges) {

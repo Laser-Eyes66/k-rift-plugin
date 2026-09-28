@@ -1,5 +1,4 @@
 const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const SERVER_URL = chrome.runtime.getManifest().server_url;
 
 document.addEventListener('DOMContentLoaded', async () => {
     const config = await chrome.storage.sync.get(['apiKey', 'schoolDomain', 'partnerId', 'schoolName', 'disableBadges']);

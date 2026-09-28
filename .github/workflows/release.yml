@@ -15,29 +15,25 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
 
-      - name: Transform Manifest for Production
+      - name: Transform Files for Production
         run: |
-          # Extract version from git tag (stripping the leading 'v')
           VERSION=${GITHUB_REF#refs/tags/v}
           echo "Building extension version: $VERSION"
 
-          # Inject version, swap server URL, and strip localhost permissions
+          # Update manifest.json version and strip localhost host permissions
           python3 -c '
-          import json, os
-          version = os.environ["VERSION"]
-          
+          import json
           with open("manifest.json", "r") as f:
               data = json.load(f)
-          
-          data["version"] = version
-          data["server_url"] = "https://krift.4eng.org"
-          
+          data["version"] = "'$VERSION'"
           if "host_permissions" in data:
               data["host_permissions"] = [p for p in data["host_permissions"] if "127.0.0.1" not in p and "localhost" not in p]
-          
           with open("manifest.json", "w") as f:
               json.dump(data, f, indent=2)
           '
+
+          # Switch config.js to production server URL
+          echo 'const SERVER_URL = "https://krift.4eng.org";' > config.js
 
       - name: Package Extension into Zip
         run: |
