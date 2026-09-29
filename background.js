@@ -76,7 +76,19 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     if (request.action === "ingestVideoBundle" && tabId) {
         const { payload } = request;
+        if (payload.simulate_update) {
+            const mockData = {
+                status: 'upgrade_required',
+                color: '#FF0000',
+                shortname: 'UPDT',
+                message: 'You need to update. <a href="https://krift.4eng.org/contribute/?update" target="_blank" style="color: white; text-decoration: underline;">Download the update here.</a>'
+            };
 
+            updateTabBadge(tabId, mockData.shortname, mockData.color);
+            tabMessages[tabId] = { message: mockData.message, color: mockData.color };
+            sendResponse({ status: "success", data: mockData });
+            return true;
+        }
         fetch(`${SERVER_URL}/api/ingest-video-bundle/`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -92,7 +104,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 }
                 return res.json();
             })
-            .then(data => {
+            .then(async data => {
+                // set a flag that update is needed. Extensions used to spam server for update
+                if (data.status === 'upgrade_required') {
+                    await chrome.storage.local.set({ updateRequired: true });
+                }
+
                 if (data.shortname && data.color) {
                     updateTabBadge(tabId, data.shortname, data.color);
                 }

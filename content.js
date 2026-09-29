@@ -1,12 +1,12 @@
 const POLL_INTERVAL_MS = 2000;
-const MAX_POLL_ATTEMPTS = 10;
+const MAX_POLL_ATTEMPTS = 10; // sometimes the page loads slow or the iframe loads way after. Maybe this is too generous?
 const isIframe = (window !== window.top);
 
 let pollTimer = null;
 let pollAttempts = 0;
 let bundleSent = false;
 let currentLoadedCourseKey = null;
-const processedEntries = new Set(); // Stores local cache
+const processedEntries = new Set();
 
 function isContextValid() {
     if (!chrome.runtime?.id) {
@@ -31,6 +31,10 @@ function safeSendMessage(message, callback) {
     }
 }
 
+const sendIngestRequest = (payload) => new Promise(resolve => {
+    safeSendMessage({ action: "ingestVideoBundle", payload }, resolve);
+});
+
 async function safeGetStorage(keys, storageType = 'sync') {
     if (!isContextValid()) return null;
     try {
@@ -51,7 +55,10 @@ if (!isIframe) {
         if (contextElem) {
             try {
                 const contextData = JSON.parse(contextElem.getAttribute('data-he-context'));
-                if (contextData && contextData.orgUnitPath) rawCourseName = contextData.orgUnitPath;
+                if (contextData && contextData.orgUnitPath) {
+                    // strip trailing slashes and pop the last chunk in the rare case the course path has periods
+                    rawCourseName = contextData.orgUnitPath.replace(/\/+$/, '').split('/').pop();
+                }
             } catch (e) {}
         }
 
@@ -79,10 +86,7 @@ if (isIframe) {
         pollAttempts++;
 
         const config = await safeGetStorage(['apiKey', 'partnerId'], 'sync');
-        if (!config) return;
-
-        if (!config.apiKey) {
-            safeSendMessage({ action: "updateBadge", text: "KEY", color: "#EF4444" });
+        if (!config || !config.apiKey) {
             if (pollTimer) clearInterval(pollTimer);
             return;
         }
@@ -97,7 +101,6 @@ if (isIframe) {
 
             const courseKey = `cache_${parentMetadata.rawCourseName}`;
 
-            // Load the course cache only once
             if (currentLoadedCourseKey !== courseKey) {
                 const localData = await safeGetStorage([courseKey], 'local');
                 if (localData && localData[courseKey]) {
@@ -106,77 +109,131 @@ if (isIframe) {
                 currentLoadedCourseKey = courseKey;
             }
 
-            let detectedPartnerId = null;
-            const detectedEntries = [];
             const urlPattern = /\/p\/(\d+)\/sp\/.*\/entry_id\/([^\/\?\&"']+)/i;
+            const discoveredBundles = [];
 
+            // --- METHOD 1: V7 Kaltura ---
             const previewContainers = document.querySelectorAll('[data-testid="cuePointPreviewImageContainer"], [class*="timeline-preview__image-container"]');
+
             previewContainers.forEach(container => {
                 const childDivs = container.querySelectorAll('div[style*="background-image"]');
+                let pId = null;
+                const entries = new Set();
+                // all the ids are just bunched together, I have never seen it but I suspect the newer Kaltura
+                // supports more than 2 streams in one lecture
                 childDivs.forEach(div => {
                     const match = (div.getAttribute('style') || '').match(urlPattern);
                     if (match) {
-                        detectedPartnerId = match[1];
-                        if (!detectedEntries.includes(match[2])) detectedEntries.push(match[2]);
+                        pId = match[1];
+                        entries.add(match[2]);
                     }
                 });
+
+                if (entries.size > 0 && pId) {
+                    discoveredBundles.push({
+                        partner_id: pId,
+                        entry_ids: entries
+                    });
+                }
             });
 
-            if (detectedEntries.length === 0) {
-                const styleDivs = document.querySelectorAll('div[style*="entry_id"]');
-                styleDivs.forEach(div => {
-                    const match = (div.getAttribute('style') || div.outerHTML).match(urlPattern);
+            // --- METHOD 2: LEGACY Kaltura --- idk why it's so messy or why any professor still uses it
+            const videoHolders = document.querySelectorAll('div.videoHolder');
+
+            videoHolders.forEach(holder => {
+                const entries = new Set();
+                let pId = null;
+
+                const videos = holder.querySelectorAll('video');
+                videos.forEach(video => {
+                    // Extract primary ID from explicit attributes
+                    const kEntryId = video.getAttribute('kentryid');
+                    const kPartnerId = video.getAttribute('kpartnerid');
+
+                    if (kEntryId) {
+                        entries.add(kEntryId);
+                        if (kPartnerId) pId = pId || kPartnerId;
+                    }
+
+                    // Extract secondary ID from poster URL
+                    const poster = video.getAttribute('poster') || '';
+                    const match = poster.match(urlPattern);
                     if (match) {
-                        detectedPartnerId = match[1];
-                        if (!detectedEntries.includes(match[2])) detectedEntries.push(match[2]);
+                        pId = pId || match[1];
+                        entries.add(match[2]);
                     }
                 });
-            }
 
-            if (detectedEntries.length === 0) {
+                if (entries.size > 0 && pId) {
+                    discoveredBundles.push({
+                        partner_id: pId,
+                        entry_ids: entries
+                    });
+                }
+            });
+
+            if (discoveredBundles.length === 0) {
                 if (pollAttempts >= MAX_POLL_ATTEMPTS && pollTimer) clearInterval(pollTimer);
                 return;
             }
 
-            // Filter entries to bypass server if they are completely cached offline
-            const uncachedEntries = detectedEntries.filter(id => !processedEntries.has(id));
+            // --- FILTER & PREPARE PAYLOADS ---
+            const payloadsToSend = [];
+            for (const bundle of discoveredBundles) {
+                const uncachedEntries = Array.from(bundle.entry_ids).filter(id => !processedEntries.has(id));
 
-            if (uncachedEntries.length === 0) {
+                if (uncachedEntries.length > 0) {
+                    payloadsToSend.push({
+                        version: chrome.runtime.getManifest().version,
+                        api_key: config.apiKey,
+                        entry_ids: Array.from(bundle.entry_ids),
+                        raw_course_name: parentMetadata.rawCourseName,
+                        partner_id: bundle.partner_id
+                    });
+                }
+            }
+
+            // If everything was already cached locally, just show DUP and exit.
+            if (payloadsToSend.length === 0) {
                 if (pollTimer) clearInterval(pollTimer);
                 bundleSent = true;
-                safeSendMessage({ action: "updateBadge", text: "DUP", color: "#808080" });
+                safeSendMessage({ action: "updateBadge", text: "DUP", color: "#ffc107" });
                 return;
             }
 
-            // At least one new entry exists, initiate server request
+            // check for cached update to prevent spam
+            const localStatus = await safeGetStorage(['updateRequired'], 'local');
+            if (localStatus && localStatus.updateRequired) {
+                if (pollTimer) clearInterval(pollTimer);
+                bundleSent = true;
+                safeSendMessage({ action: "updateBadge", text: "UPDT", color: "#FF0000" });
+
+                safeSendMessage({
+                    action: "ingestVideoBundle",
+                    payload: {
+                        version: chrome.runtime.getManifest().version,
+                        simulate_update: true
+                    }
+                });
+                return;
+            }
+
             if (pollTimer) clearInterval(pollTimer);
             bundleSent = true;
 
-            if (!detectedPartnerId || detectedPartnerId === '*' || detectedPartnerId.trim() === '') return;
+            // --- SEND SEQUENTIALLY ---
+            for (let i = 0; i < payloadsToSend.length; i++) {
+                safeSendMessage({ action: "updateBadge", text: "...", color: "#F59E0B" });
 
-            // Loading badge active
-            safeSendMessage({ action: "updateBadge", text: "...", color: "#F59E0B" });
+                const response = await sendIngestRequest(payloadsToSend[i]);
 
-            const payload = {
-                version: chrome.runtime.getManifest().version,
-                api_key: config.apiKey,
-                entry_ids: detectedEntries, // The server handles duplicate checking for the bundle
-                raw_course_name: parentMetadata.rawCourseName,
-                partner_id: detectedPartnerId
-            };
-
-            safeSendMessage({
-                action: "ingestVideoBundle",
-                payload: payload
-            }, (response) => {
-                // If network request succeeded, merge new data into cache immediately
                 if (response && response.data && response.data.cached_videos && isContextValid()) {
                     response.data.cached_videos.forEach(id => processedEntries.add(id));
                     try {
-                        chrome.storage.local.set({ [courseKey]: response.data.cached_videos });
+                        chrome.storage.local.set({ [courseKey]: Array.from(processedEntries) });
                     } catch (e) {}
                 }
-            });
+            }
         });
     }
 

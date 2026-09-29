@@ -59,9 +59,12 @@ function showSchoolInfo(name, domain, partner) {
 }
 
 document.getElementById('verifyBtn').addEventListener('click', async () => {
+    const btn = document.getElementById('verifyBtn');
+
+    if (btn.dataset.locked) return;
+
     const apiKey = document.getElementById('apiKey').value.trim();
     const status = document.getElementById('status');
-    const btn = document.getElementById('verifyBtn');
 
     if (!uuidRegex.test(apiKey)) {
         status.style.color = '#EF4444';
@@ -69,7 +72,11 @@ document.getElementById('verifyBtn').addEventListener('click', async () => {
         return;
     }
 
-    btn.disabled = true;
+    btn.dataset.locked = 'true';
+    btn.style.cursor = 'not-allowed';
+    btn.style.background = '#064E3B';
+    btn.style.color = '#9CA3AF';
+
     status.style.color = '#F3F4F6';
     status.innerText = 'Verifying...';
     document.getElementById('serverMsg').style.display = 'none';
@@ -90,7 +97,7 @@ document.getElementById('verifyBtn').addEventListener('click', async () => {
                 partnerId: data.partner_id,
                 schoolName: data.school_name
             });
-
+            await chrome.storage.local.remove(['updateRequired']);
             if (data.prefilled_cache) {
                 await chrome.storage.local.set(data.prefilled_cache);
             }
@@ -128,7 +135,11 @@ document.getElementById('verifyBtn').addEventListener('click', async () => {
         status.innerText = 'Network error. Cannot reach server.';
         document.getElementById('schoolInfo').style.display = 'none';
     } finally {
-        btn.disabled = false;
-        setTimeout(() => { if (status.innerText.includes('Connected')) status.innerText = ''; }, 2500);
+        setTimeout(() => {
+            delete btn.dataset.locked;
+            btn.style.cursor = '';
+            btn.style.background = '';
+            btn.style.color = '';
+        }, 3000); // anti button spam for those with auto clickers
     }
 });

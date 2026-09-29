@@ -1,8 +1,14 @@
 {
   "manifest_version": 3,
   "name": "Krift Browser Plugin",
-  "version": "0.4.1",
+  "version": "0.5.0",
   "description": "Detects Kaltura videos on Brightspace and syncs them to Krift.",
+  "icons": {
+    "16": "favicon-16x16.png",
+    "32": "favicon-32x32.png",
+    "192": "android-chrome-192x192.png",
+    "512": "android-chrome-512x512.png"
+  },
   "permissions": [
     "storage",
     "activeTab",
@@ -16,7 +22,8 @@
     "https://*.4eng.org/*"
   ],
   "action": {
-    "default_popup": "popup.html"
+    "default_popup": "popup.html",
+    "default_icon": "favicon-32x32.png"
   },
   "background": {
     "service_worker": "background.js"
