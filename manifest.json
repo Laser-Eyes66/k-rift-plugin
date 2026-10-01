@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Krift Browser Plugin",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "description": "Detects Kaltura videos on Brightspace and syncs them to Krift.",
   "icons": {
     "16": "favicon-16x16.png",

@@ -39,7 +39,7 @@ async function updateTabBadge(tabId, text, color) {
         if (badgeTimers[tabId]) clearTimeout(badgeTimers[tabId]);
 
         // Do not auto-clear permanent warning states or loading indicators
-        if (text !== "KEY" && text !== "ERR" && text !== "UPDT" && text !== "...") {
+        if (text !== "KEY" && text !== "ERR" && text !== "UPDT" && text !== "TOK" && text !== "...") {
             badgeTimers[tabId] = setTimeout(() => {
                 chrome.action.setBadgeText({ tabId, text: "" });
             }, 5000);
@@ -89,23 +89,43 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
             sendResponse({ status: "success", data: mockData });
             return true;
         }
+        if (payload.simulate_tok_error) {
+            const mockData = {
+                status: 'error',
+                color: '#EF4444',
+                shortname: 'TOK',
+                message: 'Unable to extract Kaltura session token from the page.'
+            };
+
+            updateTabBadge(tabId, mockData.shortname, mockData.color);
+            tabMessages[tabId] = { message: mockData.message, color: mockData.color };
+            sendResponse({ status: "success", data: mockData });
+            return true;
+        }
         fetch(`${SERVER_URL}/api/ingest-video-bundle/`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)
         })
             .then(async res => {
-                if (res.status === 401) {
+                const text = await res.text();
+                let data;
+                try {
+                    data = JSON.parse(text);
+                } catch (e) {
+                    throw new Error("Server returned an invalid, non-JSON response");
+                }
+                if (data.shortname === 'AUTH') {
                     await chrome.storage.sync.remove(['apiKey']);
                     await chrome.storage.local.clear();
                     updateTabBadge(tabId, "KEY", "#EF4444");
                     tabMessages[tabId] = { message: "API key invalid or revoked.", color: "#EF4444" };
-                    throw new Error("API key invalid or revoked.");
+                    throw new Error("Krift API key invalid or revoked.");
                 }
-                return res.json();
+
+                return data;
             })
             .then(async data => {
-                // set a flag that update is needed. Extensions used to spam server for update
                 if (data.status === 'upgrade_required') {
                     await chrome.storage.local.set({ updateRequired: true });
                 }
@@ -121,7 +141,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
                 sendResponse({ status: "success", data: data });
             })
             .catch(err => {
-                if (!err.message.includes("API key")) {
+                if (!err.message.includes("Krift API key")) {
                     console.error('[Krift] Server Ingest Error:', err);
                     updateTabBadge(tabId, "ERR", "#EF4444");
                     tabMessages[tabId] = { message: "A network or parsing error occurred.", color: "#EF4444" };

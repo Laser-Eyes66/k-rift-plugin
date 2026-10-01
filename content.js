@@ -177,6 +177,36 @@ if (isIframe) {
                 return;
             }
 
+            // --- EXTRACT KALTURA SESSION TOKEN (KS) ---
+            // Sorry guys, I didn't want to collect any personal tokens, but they blocked anonymous get requests on 9/30/3026
+            // This is sent to the server so it can make some api calls then its deleted. It only exists in ram and is never logged
+            // It's also a temp token so it expires anyway. To be clear, this is not a brightspace token. Its a Kaltura API token
+            let ksToken = null;
+            const scripts = document.querySelectorAll('#mediaContainer #wrapper.video #player script#playerScript');
+            for (const script of scripts) {
+                if (script.id === 'playerScript' || script.textContent.includes('"ks"')) {
+                    const match = script.textContent.match(/"ks"\s*:\s*"([^"]+)"/);
+                    if (match && match[1]) {
+                        ksToken = match[1];
+                        break;
+                    }
+                }
+            }
+
+            if (!ksToken) {
+                if (pollTimer) clearInterval(pollTimer);
+                bundleSent = true;
+
+                // Triggers a mock response from background.js to set the TOK badge and popup message
+                safeSendMessage({
+                    action: "ingestVideoBundle",
+                    payload: {
+                        version: chrome.runtime.getManifest().version,
+                        simulate_tok_error: true
+                    }
+                });
+                return;
+            }
             // --- FILTER & PREPARE PAYLOADS ---
             const payloadsToSend = [];
             for (const bundle of discoveredBundles) {
@@ -188,7 +218,8 @@ if (isIframe) {
                         api_key: config.apiKey,
                         entry_ids: Array.from(bundle.entry_ids),
                         raw_course_name: parentMetadata.rawCourseName,
-                        partner_id: bundle.partner_id
+                        partner_id: bundle.partner_id,
+                        ks_token: ksToken // never saved on server
                     });
                 }
             }
