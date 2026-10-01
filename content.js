@@ -8,22 +8,6 @@ let bundleSent = false;
 let currentLoadedCourseKey = null;
 const processedEntries = new Set();
 
-let interceptedKsToken = null;
-// NETWORK TOKEN INTERCEPTOR ---
-if (isIframe) {
-    const script = document.createElement('script');
-    script.src = chrome.runtime.getURL('interceptor.js');
-    script.onload = function() {
-        this.remove();
-    };
-    (document.head || document.documentElement).appendChild(script);
-
-    window.addEventListener('message', (event) => {
-        if (event.source === window && event.data && event.data.type === 'KRIFT_KS_TOKEN') {
-            interceptedKsToken = event.data.ks;
-        }
-    });
-}
 
 function isContextValid() {
     if (!chrome.runtime?.id) {
@@ -95,8 +79,13 @@ if (!isIframe) {
 
     setTimeout(() => clearInterval(parentPoll), 10000);
 }
-
+let interceptedKsToken = null;
 if (isIframe) {
+    window.addEventListener('message', (event) => {
+        if (event.source === window && event.data && event.data.type === 'KRIFT_KS_TOKEN') {
+            interceptedKsToken = event.data.ks;
+        }
+    });
     async function scanIframeForVideos() {
         if (!isContextValid() || bundleSent) return;
 

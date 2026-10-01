@@ -34,19 +34,18 @@
         "https://*.brightspace.com/*",
         "https://*.kaltura.com/*"
       ],
-      "all_frames": true,
-      "match_about_blank": true,
-      "js": ["content.js"],
-      "run_at": "document_idle"
-    }
-  ],
-  "web_accessible_resources": [
+      "js": ["interceptor.js"],
+      "run_at": "document_start",
+      "world": "MAIN",
+      "all_frames": true
+    },
     {
-      "resources": ["interceptor.js"],
       "matches": [
         "https://*.brightspace.com/*",
         "https://*.kaltura.com/*"
-      ]
+      ],
+      "js": ["content.js"],
+      "all_frames": true
     }
   ]
 }

@@ -8,7 +8,6 @@
 
     const extractKsFromBody = (bodyStr) => {
         if (typeof bodyStr !== 'string') return null;
-
         const match = bodyStr.match(/(?:^|[&?])(?:\d+:)?ks=([^&]+)/);
         if (match && match[1]) {
             return decodeURIComponent(match[1]);
