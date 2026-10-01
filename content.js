@@ -8,6 +8,23 @@ let bundleSent = false;
 let currentLoadedCourseKey = null;
 const processedEntries = new Set();
 
+let interceptedKsToken = null;
+// NETWORK TOKEN INTERCEPTOR ---
+if (isIframe) {
+    const script = document.createElement('script');
+    script.src = chrome.runtime.getURL('interceptor.js');
+    script.onload = function() {
+        this.remove();
+    };
+    (document.head || document.documentElement).appendChild(script);
+
+    window.addEventListener('message', (event) => {
+        if (event.source === window && event.data && event.data.type === 'KRIFT_KS_TOKEN') {
+            interceptedKsToken = event.data.ks;
+        }
+    });
+}
+
 function isContextValid() {
     if (!chrome.runtime?.id) {
         if (pollTimer) clearInterval(pollTimer);
@@ -181,18 +198,19 @@ if (isIframe) {
             // Sorry guys, I didn't want to collect any personal tokens, but they blocked anonymous get requests on 9/30/3026
             // This is sent to the server so it can make some api calls then its deleted. It only exists in ram and is never logged
             // It's also a temp token so it expires anyway. To be clear, this is not a brightspace token. Its a Kaltura API token
-            let ksToken = null;
-            const scripts = document.querySelectorAll('#mediaContainer #wrapper.video #player script#playerScript');
-            for (const script of scripts) {
-                if (script.id === 'playerScript' || script.textContent.includes('"ks"')) {
-                    const match = script.textContent.match(/"ks"\s*:\s*"([^"]+)"/);
-                    if (match && match[1]) {
-                        ksToken = match[1];
-                        break;
+            let ksToken = interceptedKsToken;
+            if (!ksToken) {
+                const scripts = document.querySelectorAll('#mediaContainer #wrapper.video #player script#playerScript');
+                for (const script of scripts) {
+                    if (script.id === 'playerScript' || script.textContent.includes('"ks"')) {
+                        const match = script.textContent.match(/"ks"\s*:\s*"([^"]+)"/);
+                        if (match && match[1]) {
+                            ksToken = match[1];
+                            break;
+                        }
                     }
                 }
             }
-
             if (!ksToken) {
                 if (pollTimer) clearInterval(pollTimer);
                 bundleSent = true;
