@@ -200,6 +200,19 @@ if (isIframe) {
                     }
                 }
             }
+            // Kaltura V2 support
+            if (!ksToken) {
+                const scripts = document.querySelectorAll('#mediaContainer #wrapper.video #player script');
+                for (const script of scripts) {
+                    if (script.textContent.includes('var flashvars') || script.textContent.includes('"ks"')) {
+                        const match = script.textContent.match(/"ks"\s*:\s*"([^"]+)"/);
+                        if (match && match[1]) {
+                            ksToken = match[1];
+                            break;
+                        }
+                    }
+                }
+            }
             if (!ksToken) {
                 if (pollTimer) clearInterval(pollTimer);
                 bundleSent = true;
